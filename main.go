@@ -1,23 +1,28 @@
 package main
 
 import (
-	"net/http"
+	"os"
 
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
+	"github.com/run-ci/run-server/http"
+
+	"github.com/sirupsen/logrus"
 )
 
+var logger *logrus.Entry
+
+func init() {
+	lvl, err := logrus.ParseLevel(os.Getenv("RUN_LOG_LEVEL"))
+	if err != nil {
+		lvl = logrus.InfoLevel
+	}
+
+	logrus.SetLevel(lvl)
+
+	logger = logrus.WithField("package", "main")
+}
+
 func main() {
-	log.Println("booting server...")
+	logger.Println("booting server...")
 
-	r := mux.NewRouter()
-
-	r.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
-		log.Println("GET /")
-
-		rw.WriteHeader(http.StatusOK)
-		return
-	})
-
-	http.ListenAndServe(":9001", r)
+	http.ListenAndServe(":9001")
 }
