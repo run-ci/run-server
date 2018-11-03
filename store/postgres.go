@@ -32,5 +32,5 @@ func NewPostgres(connstr string) (Repo, error) {
 func (pg *Postgres) CreateGitRepo(repo GitRepo) (GitRepo, error) {
 	logger.Debugf("creating git repo for %v", repo.Remote)
 
-	return GitRepo{}, nil
+	return repo, nil
 }

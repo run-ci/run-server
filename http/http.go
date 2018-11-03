@@ -38,6 +38,8 @@ func NewServer(addr string, st store.Repo) *Server {
 		Server: &http.Server{
 			Addr: addr,
 		},
+
+		st: st,
 	}
 
 	r := mux.NewRouter()
@@ -46,7 +48,7 @@ func NewServer(addr string, st store.Repo) *Server {
 	r.Handle("/", chain(getRoot, setRequestID, logRequest)).
 		Methods(http.MethodGet)
 
-	r.Handle("/triggers/git", chain(postGitTrigger, setRequestID, logRequest)).
+	r.Handle("/repos/git", chain(srv.postGitRepo, setRequestID, logRequest)).
 		Methods(http.MethodPost)
 
 	return srv

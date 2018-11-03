@@ -4,17 +4,19 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/run-ci/run-server/store"
 )
 
-type gitTriggerRequest struct {
+type gitRepoRequest struct {
 	Remote string `json:"remote"`
 }
 
-type gitTriggerResponse struct {
+type gitRepoResponse struct {
 	Remote string `json:"remote"`
 }
 
-func postGitTrigger(rw http.ResponseWriter, req *http.Request) {
+func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 	reqID := req.Context().Value(keyReqID).(string)
 	logger := logger.WithField("request_id", reqID)
 
@@ -29,8 +31,8 @@ func postGitTrigger(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	logger.Debug("unmarshaling request body")
-	var trigger gitTriggerRequest
-	err = json.Unmarshal(buf, &trigger)
+	var repo gitRepoRequest
+	err = json.Unmarshal(buf, &repo)
 	if err != nil {
 		logger.WithField("error", err).
 			Error("unable to unmarshal request body")
@@ -39,10 +41,13 @@ func postGitTrigger(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	logger.Infof("adding git trigger for %v", trigger.Remote)
+	logger.Infof("adding git repo for %v", repo.Remote)
+	saved, err := srv.st.CreateGitRepo(store.GitRepo{
+		Remote: repo.Remote,
+	})
 
-	resp := gitTriggerResponse{
-		Remote: trigger.Remote,
+	resp := gitRepoResponse{
+		Remote: saved.Remote,
 	}
 	buf, err = json.Marshal(resp)
 	if err != nil {

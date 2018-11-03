@@ -13,6 +13,8 @@ services:
     - RUN_POSTGRES_SSL
     volumes:
     - "./run-server:/bin/run-server"
+    ports:
+    - "9001:9001"
     command: /bin/run-server
   store:
     image: postgres

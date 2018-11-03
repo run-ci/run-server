@@ -4,4 +4,4 @@ CREATE TABLE git_triggers (
 
 INSERT INTO git_triggers (remote)
 VALUES
-    ('https://github.com/run-ci/run');
+    ('https://github.com/run-ci/run-server');
