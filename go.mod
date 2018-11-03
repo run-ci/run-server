@@ -1,4 +1,4 @@
-module github.com/run-ci/runapi
+module github.com/run-ci/run-server
 
 require (
 	github.com/gorilla/context v1.1.1 // indirect
