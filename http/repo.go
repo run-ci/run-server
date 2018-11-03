@@ -42,12 +42,26 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	logger.Infof("adding git repo for %v", repo.Remote)
-	saved, err := srv.st.CreateGitRepo(store.GitRepo{
+	err = srv.st.CreateGitRepo(store.GitRepo{
 		Remote: repo.Remote,
 	})
+	if err != nil {
+		logger.WithField("error", err).
+			Error("unable to save git repo in database")
+
+		rw.WriteHeader(http.StatusInternalServerError)
+		buf, err := json.Marshal(map[string]string{
+			"error": err.Error(),
+		})
+		if err != nil {
+			return
+		}
+		rw.Write(buf)
+		return
+	}
 
 	resp := gitRepoResponse{
-		Remote: saved.Remote,
+		Remote: repo.Remote,
 	}
 	buf, err = json.Marshal(resp)
 	if err != nil {
@@ -62,6 +76,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		rw.Write(buf)
+		return
 	}
 
 	rw.WriteHeader(http.StatusCreated)

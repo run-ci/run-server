@@ -29,8 +29,20 @@ func NewPostgres(connstr string) (Repo, error) {
 	}, nil
 }
 
-func (pg *Postgres) CreateGitRepo(repo GitRepo) (GitRepo, error) {
+// CreateGitRepo saves the Git repository in Postgres.
+func (pg *Postgres) CreateGitRepo(repo GitRepo) error {
 	logger.Debugf("creating git repo for %v", repo.Remote)
 
-	return repo, nil
+	sqlinsert := `
+	INSERT INTO git_repos (remote)
+	VALUES
+		($1);
+	`
+
+	_, err := pg.db.Exec(sqlinsert, repo.Remote)
+	if err != nil {
+		logger.WithField("error", err).
+			Debugf("unable to create git repo for %v", repo.Remote)
+	}
+	return err
 }

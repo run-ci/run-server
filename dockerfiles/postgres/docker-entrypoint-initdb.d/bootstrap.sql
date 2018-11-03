@@ -1,7 +1,7 @@
-CREATE TABLE git_triggers (
+CREATE TABLE git_repos (
     remote varchar(255) NOT NULL UNIQUE
 );
 
-INSERT INTO git_triggers (remote)
+INSERT INTO git_repos (remote)
 VALUES
-    ('https://github.com/run-ci/run-server');
+    ('https://github.com/run-ci/run-server.git');
