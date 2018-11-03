@@ -1,6 +1,12 @@
 export RUN_LOG_LEVEL=debug
 export TEST_GIT_TRIGGER=$(cat examples/git-trigger.json)
 
-export POSTGRES_USER=run_server_test
-export POSTGRES_PASSWORD=run_server_test
-export POSTGRES_DB=run_server_test
+export POSTGRES_USER=run_test
+export POSTGRES_PASSWORD=run_test
+export POSTGRES_DB=run_test
+
+export RUN_POSTGRES_USER=$POSTGRES_USER
+export RUN_POSTGRES_PASS=$POSTGRES_PASSWORD
+export RUN_POSTGRES_DB=$POSTGRES_DB
+export RUN_POSTGRES_HREF=store:5432 # This is the compose service
+export RUN_POSTGRES_SSL=disable

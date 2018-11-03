@@ -6,6 +6,11 @@ services:
     image: ubuntu:18.04
     environment:
     - RUN_LOG_LEVEL
+    - RUN_POSTGRES_USER
+    - RUN_POSTGRES_PASS
+    - RUN_POSTGRES_DB
+    - RUN_POSTGRES_HREF
+    - RUN_POSTGRES_SSL
     volumes:
     - "./run-server:/bin/run-server"
     command: /bin/run-server

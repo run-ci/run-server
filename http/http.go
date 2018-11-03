@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/run-ci/run-server/store"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -21,9 +23,25 @@ func init() {
 	logger = logrus.WithField("package", "http")
 }
 
-// ListenAndServe wraps http.ListenAndServe.
-func ListenAndServe(addr string) error {
+// Server is a net/http.Server with dependencies like
+// the database connection.
+type Server struct {
+	st store.Repo
+
+	*http.Server
+}
+
+// NewServer returns a Server with a reference to `st`, listening
+// on `addr`.
+func NewServer(addr string, st store.Repo) *Server {
+	srv := &Server{
+		Server: &http.Server{
+			Addr: addr,
+		},
+	}
+
 	r := mux.NewRouter()
+	srv.Handler = r
 
 	r.Handle("/", chain(getRoot, setRequestID, logRequest)).
 		Methods(http.MethodGet)
@@ -31,7 +49,7 @@ func ListenAndServe(addr string) error {
 	r.Handle("/triggers/git", chain(postGitTrigger, setRequestID, logRequest)).
 		Methods(http.MethodPost)
 
-	return http.ListenAndServe(":9001", r)
+	return srv
 }
 
 // Middleware is a function that can intercept the handling of an HTTP request
