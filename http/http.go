@@ -25,7 +25,11 @@ func init() {
 func ListenAndServe(addr string) error {
 	r := mux.NewRouter()
 
-	r.Handle("/", chain(getRoot, setRequestID, logRequest)).Methods(http.MethodGet)
+	r.Handle("/", chain(getRoot, setRequestID, logRequest)).
+		Methods(http.MethodGet)
+
+	r.Handle("/triggers/git", chain(postGitTrigger, setRequestID, logRequest)).
+		Methods(http.MethodPost)
 
 	return http.ListenAndServe(":9001", r)
 }

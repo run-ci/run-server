@@ -1,0 +1,2 @@
+export RUN_LOG_LEVEL=debug
+export TEST_GIT_TRIGGER=$(cat examples/git-trigger.json)
