@@ -1,0 +1,21 @@
+---
+version: "3"
+
+services:
+  server:
+    image: ubuntu:18.04
+    environment:
+    - RUN_LOG_LEVEL
+    volumes:
+    - "./run-server:/bin/run-server"
+    command: /bin/run-server
+  store:
+    image: postgres
+    ports:
+    - "5432:5432"
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    volumes:
+    - "./dockerfiles/postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"

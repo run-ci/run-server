@@ -1,2 +1,6 @@
 export RUN_LOG_LEVEL=debug
 export TEST_GIT_TRIGGER=$(cat examples/git-trigger.json)
+
+export POSTGRES_USER=run_server_test
+export POSTGRES_PASSWORD=run_server_test
+export POSTGRES_DB=run_server_test
