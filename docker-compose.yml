@@ -26,3 +26,25 @@ services:
     - POSTGRES_DB
     volumes:
     - "./dockerfiles/postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
+  cron:
+    image: dkron/dkron
+    ports:
+    - "8946:8946"
+    - "8080:8080"
+    - "6868:6868"
+    environment:
+      DKRON_BACKEND_MACHINE: kv:2379
+    command: agent --server
+  kv:
+    image: quay.io/coreos/etcd
+    ports:
+    - "4001:4001"
+    - "2380:2380"
+    - "2379:2379"
+    environment:
+      ETCD_NAME: etcd0
+      ETCD_ADVERTISE_CLIENT_URLS: http://kv:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://kv:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_CLUSTER: etcd0=http://kv:2380
