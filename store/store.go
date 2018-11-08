@@ -12,6 +12,7 @@ func init() {
 type Repo interface {
 	CreateGitRepo(GitRepo) error
 	GetGitRepo(string) (GitRepo, error)
+	GetGitRepos() ([]GitRepo, error)
 }
 
 // GitRepo is a Git repository.

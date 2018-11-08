@@ -49,7 +49,7 @@ func (pg *Postgres) CreateGitRepo(repo GitRepo) error {
 
 func (pg *Postgres) GetGitRepo(remote string) (GitRepo, error) {
 	logger := logger.WithField("remote", remote)
-	logger.Debugf("getting git repo from postgres")
+	logger.Debug("getting git repo from postgres")
 
 	sqlq := `
 	SELECT * FROM git_repos
@@ -58,4 +58,31 @@ func (pg *Postgres) GetGitRepo(remote string) (GitRepo, error) {
 
 	var repo GitRepo
 	return repo, pg.db.QueryRow(sqlq, remote).Scan(&repo.Remote)
+}
+
+func (pg *Postgres) GetGitRepos() ([]GitRepo, error) {
+	logger.Debug("getting git repos from postgres")
+
+	sqlq := `
+	SELECT remote FROM git_repos;
+	`
+
+	rows, err := pg.db.Query(sqlq)
+	if err != nil {
+		logger.WithField("error", err).Debug("unable to query database")
+		return nil, err
+	}
+
+	repos := []GitRepo{}
+	for rows.Next() {
+		repo := GitRepo{}
+		err := rows.Scan(&repo.Remote)
+		if err != nil {
+			logger.WithField("error", err).Debug("unable to scan row")
+			return repos, err
+		}
+		repos = append(repos, repo)
+	}
+
+	return repos, nil
 }

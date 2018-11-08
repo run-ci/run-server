@@ -90,15 +90,36 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	logger := logger.WithField("request_id", reqID)
 
 	if _, ok := req.URL.Query()["remote"]; !ok {
-		logger.Error("missing 'remote' argument")
+		logger.Info("missing 'remote' argument, fetching all repos")
 
-		rw.WriteHeader(http.StatusBadRequest)
-		buf, err := json.Marshal(map[string]string{
-			"error": "missing 'remote' argument",
-		})
+		repos, err := srv.st.GetGitRepos()
 		if err != nil {
+			logger.WithField("error", err).Error("unable to get git repos from database")
+
+			rw.WriteHeader(http.StatusInternalServerError)
+			buf, err := json.Marshal(map[string]string{
+				"error": err.Error(),
+			})
+			if err != nil {
+				return
+			}
+			rw.Write(buf)
 			return
 		}
+
+		resp := []gitRepoResponse{}
+		for _, repo := range repos {
+			resp = append(resp, gitRepoResponse{Remote: repo.Remote})
+		}
+
+		buf, err := json.Marshal(resp)
+		if err != nil {
+			logger.WithField("error", err).Error("unable to marshal response body")
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
 		rw.Write(buf)
 		return
 	}
