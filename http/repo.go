@@ -1,6 +1,7 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -80,6 +81,55 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusCreated)
+	rw.Write(buf)
+	return
+}
+
+func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
+	reqID := req.Context().Value(keyReqID).(string)
+	logger := logger.WithField("request_id", reqID)
+
+	if _, ok := req.URL.Query()["remote"]; !ok {
+		logger.Error("missing 'remote' argument")
+
+		rw.WriteHeader(http.StatusBadRequest)
+		buf, err := json.Marshal(map[string]string{
+			"error": "missing 'remote' argument",
+		})
+		if err != nil {
+			return
+		}
+		rw.Write(buf)
+		return
+	}
+	remote := req.URL.Query()["remote"][0]
+
+	logger = logger.WithField("remote", remote)
+	logger.Debug("getting repo")
+
+	repo, err := srv.st.GetGitRepo(remote)
+	if err == sql.ErrNoRows {
+		logger.WithField("error", err).Error("repo not found in database")
+		rw.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		logger.WithField("error", err).Error("unable to fetch repo from database")
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resp := gitRepoResponse{
+		Remote: repo.Remote,
+	}
+	buf, err := json.Marshal(resp)
+	if err != nil {
+		logger.WithField("error", err).Error("unable to marshal response body")
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
 	rw.Write(buf)
 	return
 }

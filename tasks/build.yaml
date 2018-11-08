@@ -1,0 +1,19 @@
+---
+summary: Build `run-server`.
+
+description: |
+  The `build` task builds `run-server` in the current directory.
+
+  This task runs in a Linux container. If working on Mac OS
+  make sure to set GOOS appropriately.
+
+image: golang:1.11-stretch
+
+mount: /go/src/github.com/run-ci/run-server
+
+command: go build -v
+
+arguments:
+  GOOS:
+    description: Platform to build for.
+    default: linux

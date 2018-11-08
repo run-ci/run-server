@@ -46,3 +46,16 @@ func (pg *Postgres) CreateGitRepo(repo GitRepo) error {
 	}
 	return err
 }
+
+func (pg *Postgres) GetGitRepo(remote string) (GitRepo, error) {
+	logger := logger.WithField("remote", remote)
+	logger.Debugf("getting git repo from postgres")
+
+	sqlq := `
+	SELECT * FROM git_repos
+	WHERE remote = $1;
+	`
+
+	var repo GitRepo
+	return repo, pg.db.QueryRow(sqlq, remote).Scan(&repo.Remote)
+}

@@ -11,6 +11,7 @@ func init() {
 // Repo is anything that can hold data about source repositories.
 type Repo interface {
 	CreateGitRepo(GitRepo) error
+	GetGitRepo(string) (GitRepo, error)
 }
 
 // GitRepo is a Git repository.

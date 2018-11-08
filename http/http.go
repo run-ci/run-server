@@ -51,6 +51,9 @@ func NewServer(addr string, st store.Repo) *Server {
 	r.Handle("/repos/git", chain(srv.postGitRepo, setRequestID, logRequest)).
 		Methods(http.MethodPost)
 
+	r.Handle("/repos/git", chain(srv.getGitRepo, setRequestID, logRequest)).
+		Methods(http.MethodGet)
+
 	return srv
 }
 
