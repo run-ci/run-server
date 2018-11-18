@@ -7,14 +7,17 @@ import (
 	"net/http"
 
 	"github.com/run-ci/run-server/store"
+	"github.com/sirupsen/logrus"
 )
 
 type gitRepoRequest struct {
 	Remote string `json:"remote"`
+	Branch string `json:"branch"`
 }
 
 type gitRepoResponse struct {
 	Remote string `json:"remote"`
+	Branch string `json:"branch"`
 }
 
 func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
@@ -42,9 +45,19 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	logger.Infof("adding git repo for %v", repo.Remote)
+	if repo.Branch == "" {
+		repo.Branch = "master"
+	}
+
+	logger = logger.WithFields(logrus.Fields{
+		"remote": repo.Remote,
+		"branch": repo.Branch,
+	})
+
+	logger.Info("adding git repo")
 	err = srv.st.CreateGitRepo(store.GitRepo{
 		Remote: repo.Remote,
+		Branch: repo.Branch,
 	})
 	if err != nil {
 		logger.WithField("error", err).
@@ -61,14 +74,14 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// create poller
-	err = srv.pcl.createPoller(req.Context(), repo.Remote)
+	err = srv.pcl.createPoller(req.Context(), repo.Remote, repo.Branch)
 	if err != nil {
 		logger.WithError(err).Warn("unable to create poller for git repo")
 	}
 
 	resp := gitRepoResponse{
 		Remote: repo.Remote,
+		Branch: repo.Branch,
 	}
 	buf, err = json.Marshal(resp)
 	if err != nil {
@@ -115,7 +128,10 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 
 		resp := []gitRepoResponse{}
 		for _, repo := range repos {
-			resp = append(resp, gitRepoResponse{Remote: repo.Remote})
+			resp = append(resp, gitRepoResponse{
+				Remote: repo.Remote,
+				Branch: repo.Branch,
+			})
 		}
 
 		buf, err := json.Marshal(resp)
@@ -131,10 +147,21 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	}
 	remote := req.URL.Query()["remote"][0]
 
-	logger = logger.WithField("remote", remote)
+	branch := "master"
+	if _, ok := req.URL.Query()["branch"]; ok {
+		branch = req.URL.Query()["branch"][0]
+	}
+
+	logger.Infof("using %v as branch", branch)
+
+	logger = logger.WithFields(logrus.Fields{
+		"remote": remote,
+		"branch": branch,
+	})
+
 	logger.Debug("getting repo")
 
-	repo, err := srv.st.GetGitRepo(remote)
+	repo, err := srv.st.GetGitRepo(remote, branch)
 	if err == sql.ErrNoRows {
 		logger.WithField("error", err).Error("repo not found in database")
 		rw.WriteHeader(http.StatusNotFound)

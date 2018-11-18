@@ -34,37 +34,39 @@ func (pg *Postgres) CreateGitRepo(repo GitRepo) error {
 	logger.Debugf("creating git repo for %v", repo.Remote)
 
 	sqlinsert := `
-	INSERT INTO git_repos (remote)
+	INSERT INTO git_repos (remote, branch)
 	VALUES
-		($1);
+		($1, $2);
 	`
 
-	_, err := pg.db.Exec(sqlinsert, repo.Remote)
+	_, err := pg.db.Exec(sqlinsert, repo.Remote, repo.Branch)
 	if err != nil {
 		logger.WithField("error", err).
-			Debugf("unable to create git repo for %v", repo.Remote)
+			Debugf("unable to create git repo for %v#%v", repo.Remote, repo.Branch)
 	}
 	return err
 }
 
-func (pg *Postgres) GetGitRepo(remote string) (GitRepo, error) {
+// GetGitRepo returns the git repo with the given remote and branch.
+func (pg *Postgres) GetGitRepo(remote, branch string) (GitRepo, error) {
 	logger := logger.WithField("remote", remote)
 	logger.Debug("getting git repo from postgres")
 
 	sqlq := `
 	SELECT * FROM git_repos
-	WHERE remote = $1;
+	WHERE remote = $1 AND branch = $2;
 	`
 
 	var repo GitRepo
-	return repo, pg.db.QueryRow(sqlq, remote).Scan(&repo.Remote)
+	return repo, pg.db.QueryRow(sqlq, remote).Scan(&repo.Remote, &repo.Branch)
 }
 
+// GetGitRepos returns all repos.
 func (pg *Postgres) GetGitRepos() ([]GitRepo, error) {
 	logger.Debug("getting git repos from postgres")
 
 	sqlq := `
-	SELECT remote FROM git_repos;
+	SELECT * FROM git_repos;
 	`
 
 	rows, err := pg.db.Query(sqlq)
@@ -76,7 +78,7 @@ func (pg *Postgres) GetGitRepos() ([]GitRepo, error) {
 	repos := []GitRepo{}
 	for rows.Next() {
 		repo := GitRepo{}
-		err := rows.Scan(&repo.Remote)
+		err := rows.Scan(&repo.Remote, &repo.Branch)
 		if err != nil {
 			logger.WithField("error", err).Debug("unable to scan row")
 			return repos, err

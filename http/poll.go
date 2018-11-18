@@ -23,11 +23,12 @@ type pollClient struct {
 	client *http.Client
 }
 
-func (c *pollClient) createPoller(ctx context.Context, remote string) error {
+func (c *pollClient) createPoller(ctx context.Context, remote, branch string) error {
 	reqID := ctx.Value(keyReqID).(string)
 
 	logger := logger.WithFields(logrus.Fields{
 		"remote":     remote,
+		"branch":     branch,
 		"request_id": reqID,
 	})
 
@@ -41,6 +42,7 @@ func (c *pollClient) createPoller(ctx context.Context, remote string) error {
 
 	data := pollerRequest{
 		Remote: remote,
+		Branch: branch,
 	}
 
 	buf, err := json.Marshal(data)
