@@ -61,6 +61,12 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// create poller
+	err = srv.pcl.createPoller(req.Context(), repo.Remote)
+	if err != nil {
+		logger.WithError(err).Warn("unable to create poller for git repo")
+	}
+
 	resp := gitRepoResponse{
 		Remote: repo.Remote,
 	}

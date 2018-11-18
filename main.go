@@ -12,7 +12,7 @@ import (
 
 var logger *logrus.Entry
 
-var pgconnstr string
+var pgconnstr, polladdr string
 
 func init() {
 	lvl, err := logrus.ParseLevel(os.Getenv("RUN_LOG_LEVEL"))
@@ -52,6 +52,11 @@ func init() {
 
 	pgconnstr = fmt.Sprintf("postgres://%v:%v@%v/%v?sslmode=%v",
 		pguser, pgpass, pghref, pgdb, pgssl)
+
+	polladdr = os.Getenv("RUN_POLLER_SERVER_ADDRESS")
+	if polladdr == "" {
+		logger.Warn("proceeding without a poller server")
+	}
 }
 
 func main() {
@@ -63,7 +68,7 @@ func main() {
 		logger.WithField("error", err).Fatal("unable to connect to postgres")
 	}
 
-	srv := http.NewServer(":9001", st)
+	srv := http.NewServer(":9001", polladdr, st)
 
 	if err := srv.ListenAndServe(); err != nil {
 		logger.WithField("error", err).Fatal("shutting down server")
