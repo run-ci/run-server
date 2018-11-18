@@ -59,6 +59,8 @@ func NewServer(addr string, polladdr string, st store.Repo) *Server {
 	r.Handle("/repos/git", chain(srv.getGitRepo, setRequestID, logRequest)).
 		Methods(http.MethodGet)
 
+	// TODO: delete git repos
+
 	return srv
 }
 
