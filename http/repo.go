@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/run-ci/run-server/store"
 	"github.com/sirupsen/logrus"
@@ -74,9 +77,34 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = srv.pcl.createPoller(req.Context(), repo.Remote, repo.Branch)
+	msg := map[string]string{
+		"op":     "create",
+		"remote": repo.Remote,
+		"branch": repo.Branch,
+	}
+	rawmsg, err := json.Marshal(msg)
 	if err != nil {
-		logger.WithError(err).Warn("unable to create poller for git repo")
+		logger.WithField("error", err).
+			Warn("unable to marshal poller create message")
+	} else {
+		go func(logger *logrus.Entry) {
+			jittersrc := rand.NewSource(time.Now().Unix())
+			jitter := rand.New(jittersrc)
+
+			for i := 0; i < 5; i++ {
+				select {
+				case srv.pollch <- rawmsg:
+					logger.Debug("message sent")
+					return
+				default:
+					base := math.Pow(float64(2), float64(i))
+					backoff := time.Duration(jitter.Intn(int(base))) * time.Second
+
+					logger.Warnf("unable to send poller create message, sleeping for %v", backoff)
+					time.Sleep(backoff)
+				}
+			}
+		}(logger)
 	}
 
 	resp := gitRepoResponse{
@@ -88,7 +116,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to marshal response body")
 
-		rw.WriteHeader(http.StatusCreated)
+		rw.WriteHeader(http.StatusAccepted)
 		buf, err := json.Marshal(map[string]string{
 			"error": err.Error(),
 		})
@@ -99,7 +127,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	rw.WriteHeader(http.StatusCreated)
+	rw.WriteHeader(http.StatusAccepted)
 	rw.Write(buf)
 	return
 }

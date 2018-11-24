@@ -5,14 +5,17 @@ import (
 	"os"
 
 	"github.com/run-ci/run-server/http"
+	"github.com/run-ci/run-server/queue"
 	"github.com/run-ci/run-server/store"
+
+	nats "github.com/nats-io/go-nats"
 
 	"github.com/sirupsen/logrus"
 )
 
 var logger *logrus.Entry
 
-var pgconnstr, polladdr string
+var pgconnstr, natsURL string
 
 func init() {
 	lvl, err := logrus.ParseLevel(os.Getenv("RUN_LOG_LEVEL"))
@@ -53,9 +56,10 @@ func init() {
 	pgconnstr = fmt.Sprintf("postgres://%v:%v@%v/%v?sslmode=%v",
 		pguser, pgpass, pghref, pgdb, pgssl)
 
-	polladdr = os.Getenv("RUN_POLLER_SERVER_ADDRESS")
-	if polladdr == "" {
-		logger.Warn("proceeding without a poller server")
+	natsURL = os.Getenv("RUN_NATS_URL")
+	if natsURL == "" {
+		logger.Warnf("setting NATS url to %v", nats.DefaultURL)
+		natsURL = nats.DefaultURL
 	}
 }
 
@@ -68,7 +72,16 @@ func main() {
 		logger.WithField("error", err).Fatal("unable to connect to postgres")
 	}
 
-	srv := http.NewServer(":9001", polladdr, st)
+	logger.Info("setting up NATS connection")
+	bus, err := queue.NewNATS(natsURL)
+	if err != nil {
+		logger.WithField("error", err).Warn("unable to connect to NATS")
+	}
+
+	logger.Info("setting up pollers send channel")
+	send := bus.SenderOn("pollers")
+
+	srv := http.NewServer(":9001", send, st)
 
 	if err := srv.ListenAndServe(); err != nil {
 		logger.WithField("error", err).Fatal("shutting down server")

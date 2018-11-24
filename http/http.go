@@ -26,25 +26,22 @@ func init() {
 // Server is a net/http.Server with dependencies like
 // the database connection.
 type Server struct {
-	st  store.Repo
-	pcl *pollClient
+	st     store.Repo
+	pollch chan<- []byte
 
 	*http.Server
 }
 
 // NewServer returns a Server with a reference to `st`, listening
 // on `addr`.
-func NewServer(addr string, polladdr string, st store.Repo) *Server {
+func NewServer(addr string, pollch chan<- []byte, st store.Repo) *Server {
 	srv := &Server{
 		Server: &http.Server{
 			Addr: addr,
 		},
 
-		st: st,
-		pcl: &pollClient{
-			url:    polladdr,
-			client: http.DefaultClient,
-		},
+		st:     st,
+		pollch: pollch,
 	}
 
 	r := mux.NewRouter()
