@@ -87,6 +87,9 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Warn("unable to marshal poller create message")
 	} else {
+		// Not being able to send to the poller is not enough to cause the
+		// request to fail. For this reason, we should try as hard as possible
+		// to send the request.
 		go func(logger *logrus.Entry) {
 			jittersrc := rand.NewSource(time.Now().Unix())
 			jitter := rand.New(jittersrc)
