@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/run-ci/run-server/store"
 )
 
@@ -25,8 +27,9 @@ func (st *memStore) CreateGitRepo(repo store.GitRepo) error {
 }
 
 func (st *memStore) GetGitRepo(remote, branch string) (store.GitRepo, error) {
+	key := fmt.Sprintf("%v#%v", remote, branch)
 
-	return store.GitRepo{}, nil
+	return st.db[key], nil
 }
 
 func (st *memStore) GetGitRepos() ([]store.GitRepo, error) {
@@ -143,5 +146,92 @@ func TestGetAllGitRepos(t *testing.T) {
 		if _, ok := st.db[key]; !ok {
 			t.Fatalf("got repo %v that isn't in DB", key)
 		}
+	}
+}
+
+func TestGetGitRepo(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
+	st := &memStore{
+		db: make(map[string]store.GitRepo),
+	}
+	st.seedRepos()
+
+	srv := NewServer(":9001", make(chan []byte), st)
+
+	remote := "test.git"
+	url := fmt.Sprintf("http://test/repos/git?remote=%v", remote)
+
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = req.WithContext(context.WithValue(context.Background(), keyReqID, "test"))
+	rw := httptest.NewRecorder()
+
+	srv.getGitRepo(rw, req)
+
+	resp := rw.Result()
+	payload, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("got error reading response body: %v", err)
+	}
+	defer resp.Body.Close()
+
+	repo := gitRepoResponse{}
+	err = json.Unmarshal(payload, &repo)
+	if err != nil {
+		t.Fatalf("got error unmarshaling response body: %v", err)
+	}
+
+	t.Logf("got repo %#v", repo)
+
+	if repo.Remote != remote {
+		t.Fatalf("expected remote %v, got %v", remote, repo.Remote)
+	}
+
+	if repo.Branch != "master" {
+		t.Fatalf("expected default branch to be master, got %v", repo.Branch)
+	}
+}
+
+func TestGetGitRepoWithBranch(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
+	st := &memStore{
+		db: make(map[string]store.GitRepo),
+	}
+	st.seedRepos()
+
+	srv := NewServer(":9001", make(chan []byte), st)
+
+	remote := "test.git"
+	branch := "feature"
+	url := fmt.Sprintf("http://test/repos/git?remote=%v&branch=%v", remote, branch)
+
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = req.WithContext(context.WithValue(context.Background(), keyReqID, "test"))
+	rw := httptest.NewRecorder()
+
+	srv.getGitRepo(rw, req)
+
+	resp := rw.Result()
+	payload, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("got error reading response body: %v", err)
+	}
+	defer resp.Body.Close()
+
+	repo := gitRepoResponse{}
+	err = json.Unmarshal(payload, &repo)
+	if err != nil {
+		t.Fatalf("got error unmarshaling response body: %v", err)
+	}
+
+	t.Logf("got repo %#v", repo)
+
+	if repo.Remote != remote {
+		t.Fatalf("expected remote %v, got %v", remote, repo.Remote)
+	}
+
+	if repo.Branch != branch {
+		t.Fatalf("expected branch to be %v, got %v", branch, repo.Branch)
 	}
 }

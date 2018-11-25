@@ -174,6 +174,7 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 
 	resp := gitRepoResponse{
 		Remote: repo.Remote,
+		Branch: repo.Branch,
 	}
 	buf, err := json.Marshal(resp)
 	if err != nil {
