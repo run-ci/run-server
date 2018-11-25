@@ -11,7 +11,7 @@ services:
     - RUN_POSTGRES_DB
     - RUN_POSTGRES_HREF
     - RUN_POSTGRES_SSL
-    - RUN_POLLER_SERVER_ADDRESS=http://poller:9002
+    - RUN_NATS_URL=nats://queue:4222
     volumes:
     - "./run-server:/bin/run-server"
     ports:
@@ -27,13 +27,6 @@ services:
     - POSTGRES_DB
     volumes:
     - "./dockerfiles/postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
-  poller:
-    image: runci/poller
-    ports:
-    - "9002:9002"
-    environment:
-    - POLLER_NATS_URL=nats://queue:4222
-    - POLLER_LOG_LEVEL=debug
   queue:
     image: nats
     ports:
