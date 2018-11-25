@@ -4,10 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io/ioutil"
-	"math"
-	"math/rand"
 	"net/http"
-	"time"
 
 	"github.com/run-ci/run-server/store"
 	"github.com/sirupsen/logrus"
@@ -33,7 +30,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to read request body")
 
-		rw.WriteHeader(http.StatusInternalServerError)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -44,7 +41,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to unmarshal request body")
 
-		rw.WriteHeader(http.StatusBadRequest)
+		writeErrResp(rw, err, http.StatusBadRequest)
 		return
 	}
 
@@ -66,14 +63,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to save git repo in database")
 
-		rw.WriteHeader(http.StatusInternalServerError)
-		buf, err := json.Marshal(map[string]string{
-			"error": err.Error(),
-		})
-		if err != nil {
-			return
-		}
-		rw.Write(buf)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -90,24 +80,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		// Not being able to send to the poller is not enough to cause the
 		// request to fail. For this reason, we should try as hard as possible
 		// to send the request.
-		go func(logger *logrus.Entry) {
-			jittersrc := rand.NewSource(time.Now().Unix())
-			jitter := rand.New(jittersrc)
-
-			for i := 0; i < 5; i++ {
-				select {
-				case srv.pollch <- rawmsg:
-					logger.Debug("message sent")
-					return
-				default:
-					base := math.Pow(float64(2), float64(i))
-					backoff := time.Duration(jitter.Intn(int(base))) * time.Second
-
-					logger.Warnf("unable to send poller create message, sleeping for %v", backoff)
-					time.Sleep(backoff)
-				}
-			}
-		}(logger)
+		go sendWithBackoff(logger, srv.pollch, rawmsg)
 	}
 
 	resp := gitRepoResponse{
@@ -119,14 +92,9 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to marshal response body")
 
-		rw.WriteHeader(http.StatusAccepted)
-		buf, err := json.Marshal(map[string]string{
-			"error": err.Error(),
-		})
-		if err != nil {
-			return
-		}
-		rw.Write(buf)
+		// We've already processed the request and taken action on it,
+		// so returning an error response code here would be misleading.
+		writeErrResp(rw, err, http.StatusAccepted)
 		return
 	}
 
