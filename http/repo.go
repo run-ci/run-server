@@ -111,32 +111,7 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	if _, ok := req.URL.Query()["remote"]; !ok {
 		logger.Info("missing 'remote' argument, fetching all repos")
 
-		repos, err := srv.st.GetGitRepos()
-		if err != nil {
-			logger.WithField("error", err).Error("unable to get git repos from database")
-
-			writeErrResp(rw, err, http.StatusInternalServerError)
-			return
-		}
-
-		resp := []gitRepoResponse{}
-		for _, repo := range repos {
-			resp = append(resp, gitRepoResponse{
-				Remote: repo.Remote,
-				Branch: repo.Branch,
-			})
-		}
-
-		buf, err := json.Marshal(resp)
-		if err != nil {
-			logger.WithField("error", err).Error("unable to marshal response body")
-
-			writeErrResp(rw, err, http.StatusInternalServerError)
-			return
-		}
-
-		rw.WriteHeader(http.StatusOK)
-		rw.Write(buf)
+		srv.getAllRepos(logger, rw)
 		return
 	}
 	remote := req.URL.Query()["remote"][0]
@@ -148,11 +123,45 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 
 	logger.Infof("using %v as branch", branch)
 
+	srv.getRepo(remote, branch, logger, rw)
+	return
+}
+
+func (srv *Server) getAllRepos(logger *logrus.Entry, rw http.ResponseWriter) {
+	repos, err := srv.st.GetGitRepos()
+	if err != nil {
+		logger.WithField("error", err).Error("unable to get git repos from database")
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
+		return
+	}
+
+	resp := []gitRepoResponse{}
+	for _, repo := range repos {
+		resp = append(resp, gitRepoResponse{
+			Remote: repo.Remote,
+			Branch: repo.Branch,
+		})
+	}
+
+	buf, err := json.Marshal(resp)
+	if err != nil {
+		logger.WithField("error", err).Error("unable to marshal response body")
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	rw.Write(buf)
+	return
+}
+
+func (srv *Server) getRepo(remote, branch string, logger *logrus.Entry, rw http.ResponseWriter) {
 	logger = logger.WithFields(logrus.Fields{
 		"remote": remote,
 		"branch": branch,
 	})
-
 	logger.Debug("getting repo")
 
 	repo, err := srv.st.GetGitRepo(remote, branch)
