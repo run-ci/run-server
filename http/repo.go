@@ -3,6 +3,7 @@ package http
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 
@@ -114,14 +115,7 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			logger.WithField("error", err).Error("unable to get git repos from database")
 
-			rw.WriteHeader(http.StatusInternalServerError)
-			buf, err := json.Marshal(map[string]string{
-				"error": err.Error(),
-			})
-			if err != nil {
-				return
-			}
-			rw.Write(buf)
+			writeErrResp(rw, err, http.StatusInternalServerError)
 			return
 		}
 
@@ -136,7 +130,8 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 		buf, err := json.Marshal(resp)
 		if err != nil {
 			logger.WithField("error", err).Error("unable to marshal response body")
-			rw.WriteHeader(http.StatusInternalServerError)
+
+			writeErrResp(rw, err, http.StatusInternalServerError)
 			return
 		}
 
@@ -163,12 +158,14 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	repo, err := srv.st.GetGitRepo(remote, branch)
 	if err == sql.ErrNoRows {
 		logger.WithField("error", err).Error("repo not found in database")
-		rw.WriteHeader(http.StatusNotFound)
+
+		writeErrResp(rw, errors.New("repo not found"), http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		logger.WithField("error", err).Error("unable to fetch repo from database")
-		rw.WriteHeader(http.StatusInternalServerError)
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -179,7 +176,7 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	buf, err := json.Marshal(resp)
 	if err != nil {
 		logger.WithField("error", err).Error("unable to marshal response body")
-		rw.WriteHeader(http.StatusInternalServerError)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
