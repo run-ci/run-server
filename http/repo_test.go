@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,8 +30,31 @@ func (st *memStore) GetGitRepo(remote, branch string) (store.GitRepo, error) {
 }
 
 func (st *memStore) GetGitRepos() ([]store.GitRepo, error) {
+	ret := make([]store.GitRepo, len(st.db))
+	i := 0
+	for _, repo := range st.db {
+		ret[i] = repo
+		i++
+	}
 
-	return []store.GitRepo{}, nil
+	return ret, nil
+}
+
+func (st *memStore) seedRepos() {
+	st.db["test.git#master"] = store.GitRepo{
+		Remote: "test.git",
+		Branch: "master",
+	}
+
+	st.db["test.git#feature"] = store.GitRepo{
+		Remote: "test.git",
+		Branch: "feature",
+	}
+
+	st.db["https://github.com/run-ci/run-server.git#master"] = store.GitRepo{
+		Remote: "https://github.com/run-ci/run-server.git",
+		Branch: "master",
+	}
 }
 
 func TestPostGitRepo(t *testing.T) {
@@ -80,5 +104,44 @@ func TestPostGitRepo(t *testing.T) {
 
 	if branch, ok := plrmsg["branch"]; !ok || branch != "master" {
 		t.Fatalf(`expected "branch" to be set to "master", got %v`, branch)
+	}
+}
+
+func TestGetAllGitRepos(t *testing.T) {
+	st := &memStore{
+		db: make(map[string]store.GitRepo),
+	}
+	st.seedRepos()
+
+	srv := NewServer(":9001", make(chan []byte), st)
+
+	req := httptest.NewRequest(http.MethodGet, "http://test/repos/git", nil)
+	req = req.WithContext(context.WithValue(context.Background(), keyReqID, "test"))
+	rw := httptest.NewRecorder()
+
+	srv.getGitRepo(rw, req)
+
+	resp := rw.Result()
+	payload, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("got error reading response body: %v", err)
+	}
+	defer resp.Body.Close()
+
+	repos := []gitRepoResponse{}
+	err = json.Unmarshal(payload, &repos)
+	if err != nil {
+		t.Fatalf("got error unmarshaling response body: %v", err)
+	}
+
+	if len(repos) != len(st.db) {
+		t.Fatalf("expected to get %v repos, got %v", len(st.db), len(repos))
+	}
+
+	for _, repo := range repos {
+		key := fmt.Sprintf("%v#%v", repo.Remote, repo.Branch)
+		if _, ok := st.db[key]; !ok {
+			t.Fatalf("got repo %v that isn't in DB", key)
+		}
 	}
 }
