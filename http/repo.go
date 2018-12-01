@@ -3,11 +3,9 @@ package http
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
-	"math"
-	"math/rand"
 	"net/http"
-	"time"
 
 	"github.com/run-ci/run-server/store"
 	"github.com/sirupsen/logrus"
@@ -33,7 +31,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to read request body")
 
-		rw.WriteHeader(http.StatusInternalServerError)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -44,7 +42,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to unmarshal request body")
 
-		rw.WriteHeader(http.StatusBadRequest)
+		writeErrResp(rw, err, http.StatusBadRequest)
 		return
 	}
 
@@ -66,14 +64,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to save git repo in database")
 
-		rw.WriteHeader(http.StatusInternalServerError)
-		buf, err := json.Marshal(map[string]string{
-			"error": err.Error(),
-		})
-		if err != nil {
-			return
-		}
-		rw.Write(buf)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -90,24 +81,7 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		// Not being able to send to the poller is not enough to cause the
 		// request to fail. For this reason, we should try as hard as possible
 		// to send the request.
-		go func(logger *logrus.Entry) {
-			jittersrc := rand.NewSource(time.Now().Unix())
-			jitter := rand.New(jittersrc)
-
-			for i := 0; i < 5; i++ {
-				select {
-				case srv.pollch <- rawmsg:
-					logger.Debug("message sent")
-					return
-				default:
-					base := math.Pow(float64(2), float64(i))
-					backoff := time.Duration(jitter.Intn(int(base))) * time.Second
-
-					logger.Warnf("unable to send poller create message, sleeping for %v", backoff)
-					time.Sleep(backoff)
-				}
-			}
-		}(logger)
+		go sendWithBackoff(logger, srv.pollch, rawmsg)
 	}
 
 	resp := gitRepoResponse{
@@ -119,14 +93,9 @@ func (srv *Server) postGitRepo(rw http.ResponseWriter, req *http.Request) {
 		logger.WithField("error", err).
 			Error("unable to marshal response body")
 
-		rw.WriteHeader(http.StatusAccepted)
-		buf, err := json.Marshal(map[string]string{
-			"error": err.Error(),
-		})
-		if err != nil {
-			return
-		}
-		rw.Write(buf)
+		// We've already processed the request and taken action on it,
+		// so returning an error response code here would be misleading.
+		writeErrResp(rw, err, http.StatusAccepted)
 		return
 	}
 
@@ -142,38 +111,7 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 	if _, ok := req.URL.Query()["remote"]; !ok {
 		logger.Info("missing 'remote' argument, fetching all repos")
 
-		repos, err := srv.st.GetGitRepos()
-		if err != nil {
-			logger.WithField("error", err).Error("unable to get git repos from database")
-
-			rw.WriteHeader(http.StatusInternalServerError)
-			buf, err := json.Marshal(map[string]string{
-				"error": err.Error(),
-			})
-			if err != nil {
-				return
-			}
-			rw.Write(buf)
-			return
-		}
-
-		resp := []gitRepoResponse{}
-		for _, repo := range repos {
-			resp = append(resp, gitRepoResponse{
-				Remote: repo.Remote,
-				Branch: repo.Branch,
-			})
-		}
-
-		buf, err := json.Marshal(resp)
-		if err != nil {
-			logger.WithField("error", err).Error("unable to marshal response body")
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		rw.WriteHeader(http.StatusOK)
-		rw.Write(buf)
+		srv.getAllRepos(logger, rw)
 		return
 	}
 	remote := req.URL.Query()["remote"][0]
@@ -185,32 +123,69 @@ func (srv *Server) getGitRepo(rw http.ResponseWriter, req *http.Request) {
 
 	logger.Infof("using %v as branch", branch)
 
+	srv.getRepo(remote, branch, logger, rw)
+	return
+}
+
+func (srv *Server) getAllRepos(logger *logrus.Entry, rw http.ResponseWriter) {
+	repos, err := srv.st.GetGitRepos()
+	if err != nil {
+		logger.WithField("error", err).Error("unable to get git repos from database")
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
+		return
+	}
+
+	resp := []gitRepoResponse{}
+	for _, repo := range repos {
+		resp = append(resp, gitRepoResponse{
+			Remote: repo.Remote,
+			Branch: repo.Branch,
+		})
+	}
+
+	buf, err := json.Marshal(resp)
+	if err != nil {
+		logger.WithField("error", err).Error("unable to marshal response body")
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	rw.Write(buf)
+	return
+}
+
+func (srv *Server) getRepo(remote, branch string, logger *logrus.Entry, rw http.ResponseWriter) {
 	logger = logger.WithFields(logrus.Fields{
 		"remote": remote,
 		"branch": branch,
 	})
-
 	logger.Debug("getting repo")
 
 	repo, err := srv.st.GetGitRepo(remote, branch)
 	if err == sql.ErrNoRows {
 		logger.WithField("error", err).Error("repo not found in database")
-		rw.WriteHeader(http.StatusNotFound)
+
+		writeErrResp(rw, errors.New("repo not found"), http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		logger.WithField("error", err).Error("unable to fetch repo from database")
-		rw.WriteHeader(http.StatusInternalServerError)
+
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
 	resp := gitRepoResponse{
 		Remote: repo.Remote,
+		Branch: repo.Branch,
 	}
 	buf, err := json.Marshal(resp)
 	if err != nil {
 		logger.WithField("error", err).Error("unable to marshal response body")
-		rw.WriteHeader(http.StatusInternalServerError)
+		writeErrResp(rw, err, http.StatusInternalServerError)
 		return
 	}
 
